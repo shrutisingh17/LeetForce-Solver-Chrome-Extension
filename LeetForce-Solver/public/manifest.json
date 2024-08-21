@@ -1,0 +1,32 @@
+{
+    "manifest_version": 3,
+    "name": "LeetCode API Extension",
+    "version": "1.0",
+    "permissions": [
+        "webRequest",
+        "tabs",
+        "activeTab",
+        "scripting",
+        "storage",
+        "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess"
+    ],
+    "host_permissions": [
+        "http://localhost:3000/*",
+        "*://leetcode.com/*",
+        "*://*/*"
+    ],
+    "background": {
+        "service_worker": "background.js",
+        "type": "module"
+    },
+    "content_scripts": [
+        {
+            "matches": ["https://leetcode.com/*"],
+            "js": ["content.js"]
+        }
+    ],
+    "action": {
+        "default_popup": "index.html"
+    }
+}

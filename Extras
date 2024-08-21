@@ -1,0 +1,473 @@
+const RULE_ID = 1;
+
+// Function to set the redirect rule
+async function setRedirectRule(redirectUrl) {
+  const redirectRule = {
+    id: RULE_ID,
+    priority: 1,
+    action: {
+      type: "redirect",
+      redirect: { url: redirectUrl },
+    },
+    condition: {
+      urlFilter: "*://*/*",
+      excludedInitiatorDomains: [
+        "leetcode.com",
+        "www.leetcode.com",
+        "developer.chrome.com",
+      ],
+      resourceTypes: ["main_frame"],
+    },
+  };
+
+  try {
+    chrome.declarativeNetRequest.updateDynamicRules({
+      removeRuleIds: [RULE_ID],
+      addRules: [redirectRule],
+    });
+    console.log("Redirect rule updated");
+  } catch (error) {
+    console.error("Error updating redirect rule:", error);
+  }
+}
+
+// Function to remove the redirect rule
+async function removeRedirectRule() {
+  try {
+    chrome.declarativeNetRequest.updateDynamicRules({
+      removeRuleIds: [RULE_ID],
+    });
+    console.log("Redirect rule removed");
+  } catch (error) {
+    console.error("Error removing redirect rule:", error);
+  }
+}
+
+// Function to handle the toggle action
+export async function handleRedirectRule(enableRedirect, problemUrl) {
+  if (enableRedirect) {
+    await setRedirectRule(problemUrl);
+  } else {
+    await removeRedirectRule();
+  }
+}
+// const checkIfUserSolvedProblem = async (details) => {
+//   try {
+//     // If the user has already solved the problem, do nothing
+//     const isProblemSolved = await storage.getProblemSolved();
+//     if (isProblemSolved) return;
+
+//     // Get the current active tab's URL
+//     const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+//     const currentURL = activeTab?.url || "";
+    
+//     const problemUrl = await storage.getProblemUrl();
+//     const sameUrl = problemUrl === currentURL || `${problemUrl}description/` === currentURL;
+
+//     if (!sameUrl) return;
+
+//     if (state.solvedListenerActive) {
+//       // Remove the listener since the outcome will either be success or fail
+//       state.solvedListenerActive = false;
+//       chrome.webRequest.onCompleted.removeListener(checkIfUserSolvedProblem);
+//     }
+
+//     if (isSubmissionSuccessURL(details.url)) {
+//       const response = await fetch(details.url);
+//       const data = await response.json();
+
+//       if (data.state === "STARTED" || data.state === "PENDING") {
+//         if (!state.solvedListenerActive) {
+//           state.solvedListenerActive = true;
+//           chrome.webRequest.onCompleted.addListener(checkIfUserSolvedProblem, {
+//             urls: ["*://leetcode.com/submissions/detail/*/check/"],
+//           });
+//         }
+//         return;
+//       }
+
+//       // if (data.status_msg !== "Accepted") {
+//       //   const hyperTortureMode = await getHyperTortureMode();
+//       //   if (hyperTortureMode) {
+//       //     await resetHyperTortureStreak();
+//       //     sendUserFailedMessage();
+//       //   }
+//       //   return;
+//       // }
+
+//       if (data.status_msg === "Accepted" && data.state === "SUCCESS" && !data.code_answer) {
+//         // await storage.updateStreak();
+//         state.leetcodeProblemSolved = true;
+//         chrome.declarativeNetRequest.updateDynamicRules({
+//           removeRuleIds: [RULE_ID],
+//         });
+//         chrome.webRequest.onCompleted.removeListener(checkIfUserSolvedProblem);
+
+//         // const hyperTortureMode = await getHyperTortureMode();
+//         // if (hyperTortureMode) {
+//         //   console.log("Hyper torture mode is enabled");
+//         //   if (state.lastAttemptedUrl) {
+//         //     chrome.tabs.update({ url: state.lastAttemptedUrl });
+//         //   }
+//         //   await updateStorage();
+//         // } else {
+//         //   sendUserSolvedMessage(data?.lang);
+//         // }
+//       }
+//     }
+//   } catch (error) {
+//     console.error("Error:", error);
+//   }
+// };
+
+
+// {
+//   "status_code": 10,
+//   "lang": "java",
+//   "run_success": true,
+//   "status_runtime": "0 ms",
+//   "memory": 41888000,
+//   "display_runtime": "0",
+//   "question_id": "66",
+//   "elapsed_time": 122,
+//   "compare_result": "111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+//   "code_output": "",
+//   "std_output": "",
+//   "last_testcase": "",
+//   "expected_output": "",
+//   "task_finish_time": 1723971375762,
+//   "task_name": "judger.judgetask.Judge",
+//   "finished": true,
+//   "total_correct": 111,
+//   "total_testcases": 111,
+//   "runtime_percentile": 100,
+//   "status_memory": "41.9 MB",
+//   "memory_percentile": 28.92499999999999,
+//   "pretty_lang": "Java",
+//   "submission_id": "1360084345",
+//   "status_msg": "Accepted",
+//   "state": "SUCCESS"
+// }
+
+
+import { storage } from "storage";
+
+import { getAllLeetCodeProblems, getLeetCodeProblemFromProblemSet } from "~leetcodeProblems";
+import type { APILeetCodeProblem, UserState } from "~types";
+
+const LEETCODE_URL = "https://leetcode.com";
+const RULE_ID = 1;
+const isLeetCodeUrl = (url) => url.includes(LEETCODE_URL);
+
+const isSubmissionSuccessURL = (url) =>
+  url.includes("/submissions/detail/") && url.includes("/check/");
+
+const sendUserSolvedMessage = (languageUsed) => {
+  chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+    chrome.tabs.sendMessage(tabs[0].id, {
+      action: "userSolvedProblem",
+      language: languageUsed,
+    });
+  });
+};
+
+
+
+const sendUserFailedMessage = () => {
+  chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+    chrome.tabs.sendMessage(tabs[0].id, {
+      action: "userFailedProblem",
+    });
+  });
+};
+
+const state = {
+  leetcodeProblemSolved: false,
+  leetCodeProblem: {
+    url: null,
+    name: null,
+  },
+  lastSubmissionDate: new Date(0),
+  solvedListenerActive: false,
+  lastAttemptedUrl: null,
+  urlListener: null,
+  includePremium: null,
+};
+
+function onMessageReceived(message, sender, sendResponse) {
+  switch (message.action) {
+    case "fetchingProblem":
+      console.log("Fetching problem started.");
+      break;
+    case "problemFetched":
+      console.log("Fetching problem completed.");
+      break;
+    case "getProblemStatus":
+      sendResponse({
+        problemSolved: state.leetcodeProblemSolved,
+        problem: state.leetCodeProblem,
+      });
+      break;
+    case "userClickedSubmit":
+      state.lastSubmissionDate = new Date();
+      state.solvedListenerActive = true;
+      console.log("User clicked submit, adding listener", state.solvedListenerActive);
+      chrome.webRequest.onCompleted.addListener(checkIfUserSolvedProblem, {
+        urls: ["*://leetcode.com/submissions/detail/*/check/"],
+      });
+      break;
+    default:
+      console.warn("Unknown message action:", message.action);
+  }
+}
+
+const checkIfUserSolvedProblem = async (details) => {
+  if (await storage.getProblemSolved()) return;
+
+  let currentURL = "";
+  try {
+    const [activeTab] = await new Promise((resolve) => {
+      chrome.tabs.query({ active: true, currentWindow: true }, resolve);
+    });
+
+    currentURL = activeTab.url;
+  } catch (error) {
+    console.error("Error getting active tab:", error);
+    return;
+  }
+
+  const problemUrl = await storage.getProblemUrl();
+
+  const sameUrl =
+    problemUrl === currentURL || problemUrl + "description/" === currentURL;
+
+  if (!sameUrl) {
+    return;
+  }
+
+  if (state.solvedListenerActive) {
+    state.solvedListenerActive = false;
+    chrome.webRequest.onCompleted.removeListener(checkIfUserSolvedProblem);
+  }
+
+  if (isSubmissionSuccessURL(details.url)) {
+    try {
+      const response = await fetch(details.url);
+      const data = await response.json();
+      if (data.state === "STARTED" || data.state === "PENDING") {
+        if (!state.solvedListenerActive) {
+          state.solvedListenerActive = true;
+          chrome.webRequest.onCompleted.addListener(checkIfUserSolvedProblem, {
+            urls: ["*://leetcode.com/submissions/detail/*/check/"],
+          });
+        }
+        return;
+      }
+      if (data.status_msg !== "Accepted") {
+        sendUserFailedMessage();
+        return;
+      }
+      if (
+        data.status_msg === "Accepted" &&
+        data.state === "SUCCESS" &&
+        !data.code_answer
+      ) {
+        await storage.updateStreak();
+        state.leetcodeProblemSolved = true;
+        chrome.declarativeNetRequest.updateDynamicRules({
+          removeRuleIds: [RULE_ID],
+        });
+        chrome.webRequest.onCompleted.removeListener(checkIfUserSolvedProblem);
+        sendUserSolvedMessage(data?.lang);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  }
+};
+
+
+export const updateProblemState = async (problem: { name: string; url: string }) => {
+  await storage.updateProblem(problem, state.leetcodeProblemSolved);
+};
+
+export const updateStorage = async () => {
+  try {
+    const isRedirectEnabled = await storage.getEnableRedirectOnEveryProblem();
+    let problem = await generateRandomLeetCodeProblem();
+    state.leetcodeProblemSolved = false;
+    updateProblemState(problem);
+    if (!state.leetcodeProblemSolved && isRedirectEnabled)
+      await setRedirectRule(problem.url);
+  } catch (error) {
+    throw new Error("Error generating random problem: " + error);
+  }
+};
+
+export async function toggleUrlListener(toggle: boolean): Promise<void> {
+  if (toggle) {
+    state.urlListener = (details: chrome.webRequest.WebRequestBodyDetails) => {
+      if (
+        !isLeetCodeUrl(details.url) &&
+        details.type === "main_frame" &&
+        !details.url.includes("chrome-extension:")
+      ) {
+        state.lastAttemptedUrl = details.url;
+      }
+      return null;
+    };
+
+    chrome.webRequest.onBeforeRequest.addListener(state.urlListener, {
+      urls: ["<all_urls>"],
+    });
+  } else {
+    chrome.webRequest.onBeforeRequest.removeListener(state.urlListener);
+  }
+}
+
+export async function generateRandomLeetCodeProblem(): Promise<{
+  url: string;
+  name: string;
+}> {
+  try {
+    const problemSet = await storage.getProblemSet();
+    const difficulty = await storage.getDifficulty();
+    if (problemSet === "all" || problemSet.startsWith("lg")) {
+      await storage.initiateLoading();
+      return await getAllLeetCodeProblems(difficulty, problemSet);
+    } else {
+      return await getLeetCodeProblemFromProblemSet(difficulty, problemSet);
+    }
+  } catch (error) {
+    console.error("Error generating random problem", error);
+    return undefined;
+  } finally {
+    await storage.stopLoading();
+  }
+}
+
+
+async function getCurrentTab() {
+  let queryOptions = { active: true, lastFocusedWindow: true };
+  let [tab] = await chrome.tabs.query(queryOptions);
+  return tab;
+}
+
+const activeTab = await getCurrentTab();
+
+
+const checkIfUserSolvedProblem = async (details) => {
+  try {
+    console.log('details', details);
+    // If the user has already solved the problem, do nothing
+    // const isProblemSolved = await storage.getProblemSolved();
+    // if (isProblemSolved) return;
+
+    const numProblems = await getNumProblem();
+
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs.length > 0) {
+        const [activeTab] = tabs;
+        console.log("activeTab:", activeTab);
+      } else {
+        console.log("No active tab found");
+      }
+    });
+
+    // Get the current active tab's URL
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    // console.log("activeTab:", activeTab);
+    const currentURL = activeTab?.url || "";
+    
+    const problemUrl = await getProblemUrl();
+    const sameUrl = problemUrl === currentURL || `${problemUrl}description/` === currentURL;
+
+    if (!sameUrl) return;
+
+    if (state.solvedListenerActive) {
+      // Remove the listener since the outcome will either be success or fail
+      state.solvedListenerActive = false;
+      chrome.webRequest.onCompleted.removeListener(checkIfUserSolvedProblem);
+    }
+
+    if (isSubmissionSuccessURL(details.url)) {
+      const response = await fetch(details.url);
+      const data = await response.json();
+      console.log('data', data);
+
+
+      if (data.state === "STARTED" || data.state === "PENDING") {
+        if (!state.solvedListenerActive) {
+          state.solvedListenerActive = true;
+          chrome.webRequest.onCompleted.addListener(checkIfUserSolvedProblem, {
+            urls: ["*://leetcode.com/submissions/detail/*/check/"],
+          });
+        }
+        return;
+      }
+
+      if (data.status_msg !== "Accepted" || data.state !== "SUCCESS" || data.code_answer) {
+        sendUserFailedMessage();
+        return;
+      }
+
+      if (data.status_msg === "Accepted" && data.state === "SUCCESS" && !data.code_answer) {
+        state.solvedQuestions++;
+        state.leetcodeProblemSolved = true;
+      
+        // Check if redirection is enabled and solve count meets the requirement
+        const enableRedirectOnEveryProblem = await getEnableRedirectOnEveryProblem();
+        if (state.solvedQuestions < numProblems) {
+          console.log('remaining', state.solvedQuestions)
+          chrome.webRequest.onCompleted.removeListener(checkIfUserSolvedProblem);
+          updateStorage(); // Generate a new problem
+        } else if (state.solvedQuestions === numProblems && enableRedirectOnEveryProblem) {
+          console.log('complete', state.solvedQuestions, numProblems)
+          chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: [RULE_ID] });
+          console.log("Rule removed on success");
+        }
+      } 
+      // else {
+      //   // Any other case is considered a failure
+      //   sendUserFailedMessage();
+      // }
+      
+    }
+  } catch (error) {
+    console.error("Error:", error);
+  }
+};
+
+
+chrome.webRequest.onCompleted.addListener(
+  async (details) => {
+    const url = details.url;
+    
+    // Distinguish between Run and Submit based on the URL
+    if (url.includes("runcode_")) {
+      console.log("Run button action detected, skipping...");
+      return; // Ignore requests triggered by the Run button
+    }
+
+    // Fetch the response data to inspect further if needed
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+
+      // Distinguish based on the `task_name` or other relevant data
+      if (data.task_name === "judger.judgetask.Judge" && data.status_msg === "Accepted") {
+        console.log("Submit button action detected, processing...");
+
+        // Here you can safely call your function to handle the problem submission
+        await checkIfUserSolvedProblem(details);
+
+      } else {
+        console.log("Not a valid submission, skipping...");
+      }
+
+    } catch (error) {
+      console.error("Failed to fetch or process the response:", error);
+    }
+  },
+  { urls: ["*://leetcode.com/submissions/detail/*/check/"] }
+);
