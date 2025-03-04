@@ -16,11 +16,9 @@ LeetForce is a Chrome extension designed to force users to solve LeetCode proble
 
 ✅ Tab Switch Prevention - Prevents you from switching tabs or closing the page until the problem is solved.
 
-✅ Time Restriction Mode (Optional) - Solve within a given time limit, or get another random problem.
-
-✅ Distraction Blocker - Hides hints, discussions, and solutions to force you to think independently.
-
 ✅ Progress Tracker - Tracks the number of problems solved daily for consistency.
+
+✅ Set Problem Limit - You can set the number of problems to solve in one go. Until you complete them, you cannot navigate away.
 
 📌 How It Works
 
@@ -38,7 +36,7 @@ Once solved, LeetForce fetches the next problem automatically.
 
 Clone the repository:
 
-git clone https://github.com/yourusername/leetforce.git
+git clone https://github.com/shrutisingh17/leetforce.git
 cd leetforce
 
 Load the extension in Chrome:
@@ -59,7 +57,7 @@ Enable/Disable strict mode to prevent any form of escape.
 
 🛑 When is LeetForce Disabled?
 
-🚫 After solving a problem - Once you successfully submit a solution, navigation is restored.
+🚫 After solving a problem - Once you successfully submit a solution or you solve the number of problems you choose to do in one go, navigation is restored.
 
 🚫 Manual Disable (If allowed) - Users can disable it via settings if configured.
 
