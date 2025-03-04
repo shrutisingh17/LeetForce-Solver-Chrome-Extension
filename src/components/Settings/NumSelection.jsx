@@ -12,50 +12,15 @@ const NumSelection = ({ numProblems, setNumProblems, disabled }) => {
     });
   }, []);
   
-  //   const handleNormalChange = (e) => {
-  //     setNumProblems(Number(e.target.value));
-  //   };
-    
-  // const setNewGoal = async (e) => {
-  //   const newGoal = Number(e.target.value);
-  //   setNumProblems(newGoal);
-  //   await chrome.storage.sync.set({ numProblems: newGoal });
-  //   updateStorage();
-  // };
-  
   const setNewGoal = async (e) => {
     const newGoal = Number(e.target.value);
     setNumProblems(newGoal);
     await chrome.storage.sync.set({ numProblems: newGoal });
     
-    // Update storage only if goalAchieved is true
     if (goalAchieved) {
       updateStorage();
-      // chrome.storage.sync.get(["problemName", "problemURL"], (result) => {
-      //   setProblemName(result.problemName ?? "");
-      //   setProblemURL(result.problemURL ?? "");
-      //   // setGoalAchieved(false); 
-      // });
     }
   };
-
-  // const setNewGoal = async (e) => {
-  //   const newGoal = Number(e.target.value);
-  //   setNumProblems(newGoal);
-  //   await chrome.storage.sync.set({ numProblems: newGoal });
-  
-  //   if (goalAchieved) {
-  //     setGoalAchieved(false); // Ensure re-render happens first
-  //   }
-  // };
-  
-  // // Trigger updateStorage only after goalAchieved changes
-  // useEffect(() => {
-  //   if (!goalAchieved) {
-  //     updateStorage();
-  //   }
-  // }, [goalAchieved]);
-  
   
   return (
       <div className={`flex justify-between items-center ${disabled ? "opacity-50 pointer-events-none" : ""}`}>
